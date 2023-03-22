@@ -1,3 +1,4 @@
+import pdb
 from transformers import CLIPTextModel, CLIPTokenizer
 from diffusers import AutoencoderKL, UNet2DConditionModel, PNDMScheduler
 from diffusers import LMSDiscreteScheduler
@@ -6,6 +7,8 @@ from PIL import Image
 import pandas as pd
 import argparse
 import os
+
+
 def generate_images(model_name, prompts_path, save_path, device='cuda:0', guidance_scale = 7.5, image_size=512, ddim_steps=100, num_samples=10, from_case=0):
     '''
     Function to generate images from diffusers code
@@ -47,9 +50,10 @@ def generate_images(model_name, prompts_path, save_path, device='cuda:0', guidan
         dir_ = "stabilityai/stable-diffusion-2-base"
     elif model_name == 'SD-V2-1':
         dir_ = "stabilityai/stable-diffusion-2-1-base"
+    # elif model_name == 'esd-nsfw':
+    #     dir_ = "stable-diffusion/models/ldm/esd/NSFW"
     else:
         dir_ = "CompVis/stable-diffusion-v1-4" # all the erasure models built on SDv1-4
-        
     # 1. Load the autoencoder model which will be used to decode the latents into image space.
     vae = AutoencoderKL.from_pretrained(dir_, subfolder="vae")
     # 2. Load the tokenizer and text encoder to tokenize and encode the text.
@@ -57,10 +61,13 @@ def generate_images(model_name, prompts_path, save_path, device='cuda:0', guidan
     text_encoder = CLIPTextModel.from_pretrained(dir_, subfolder="text_encoder")
     # 3. The UNet model for generating the latents.
     unet = UNet2DConditionModel.from_pretrained(dir_, subfolder="unet")
-    if 'SD' not in model_name:
+    if 'SD' not in model_name or 'ESD' in model_name:
         try:
-            model_path = f'models/{model_name}/{model_name.replace("compvis","diffusers")}.pt'
+            # diffusers-nudity-ESDu1-UNET.pt
+            # model_path = f'models/{model_name}/{model_name.replace("compvis","diffusers")}.pt'
+            model_path = f"/home/shimon/research/erasing/stable-diffusion/models/ldm/{model_name}.pt"
             unet.load_state_dict(torch.load(model_path))
+            print("loaded unet of model: ", model_name)
         except Exception as e:
             print(f'Model path is not valid, please check the file name and structure: {e}')
     scheduler = LMSDiscreteScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000)
@@ -147,11 +154,15 @@ def generate_images(model_name, prompts_path, save_path, device='cuda:0', guidan
         for num, im in enumerate(pil_images):
             im.save(f"{folder_path}/{case_number}_{num}.png")
 
+
 if __name__=='__main__':
+    if 'HF_HOME' not in os.environ:
+        os.environ['HF_HOME'] = '/home/shimon/research/erasing/hf_cache_dir'
+
     parser = argparse.ArgumentParser(
                     prog = 'generateImages',
                     description = 'Generate Images using Diffusers Code')
-    parser.add_argument('--model_name', help='name of model', type=str, required=True)
+    parser.add_argument('--model_name', help='name of model', type=str, required=False, default="diffusers-nudity-ESDu1-UNET")
     parser.add_argument('--prompts_path', help='path to csv file with prompts', type=str, required=True)
     parser.add_argument('--save_path', help='folder where to save images', type=str, required=True)
     parser.add_argument('--device', help='cuda device to run on', type=str, required=False, default='cuda:0')
